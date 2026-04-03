@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: mesh-pinger
+  labels:
+    app: mesh-pinger
+spec:
+  selector:
+    matchLabels:
+      app: mesh-pinger
+  template:
+    metadata:
+      labels:
+        app: mesh-pinger
+    spec:
+      # 1. Koppla på rättigheterna så Go-koden får prata med API:et
+      serviceAccountName: mesh-pinger-sa
+      containers:
+      - name: pinger
+        # 2. Byt till den nya versionen av din kod
+        image: mesh-pinger:v3
+        imagePullPolicy: Never
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+        ports:
+          - containerPort: 8080
