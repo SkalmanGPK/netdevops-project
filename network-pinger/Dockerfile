@@ -1,21 +1,35 @@
 FROM golang:1.26-alpine AS builder
+
+# Install git for certificate management
+RUN apk add --no-cache git ca-certificates
+
 WORKDIR /app
 
-# Kopiera BÅDA mod-filerna först
+# Copy go.mod and go.sum first to leverage Docker cache for dependencies
 COPY go.mod go.sum ./
-
-# Ladda ner beroenden (cache-vänligt steg)
 RUN go mod download
 
-# Kopiera källkoden
-COPY main.go ./
+# Copy the rest of the application code (including env.go/loadEnv)
+COPY . .
 
-# Bygg binären
-RUN CGO_ENABLED=0 GOOS=linux go build -o pinger main.go
+# Compile binary statically to ensure it works in a minimal image
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o mesh-pinger .
 
-FROM alpine:latest
-WORKDIR /
-COPY --from=builder /app/pinger /pinger
+# === stage 2: minimal runtime image ===
+FROM alpine:3.19
 
-EXPOSE 8080
-ENTRYPOINT ["/pinger"]
+RUN apk add --no-cache ca-certificates
+
+# Create a safe none-root-user
+RUN adduser -D -u 10001 appuser
+USER appuser
+
+WORKDIR /home/appuser
+# Copy only the compiled binary from the builder stage
+COPY --from=builder /app/mesh-pinger .
+
+
+EXPOSE 8090
+
+# Start the application
+ENTRYPOINT ["/mesh-pinger"]

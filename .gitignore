@@ -1,0 +1,28 @@
+.env
+.env.*
+!.env.example
+
+# Runable files (binary)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+mesh-pinger
+main
+
+# Archive and test-binaries
+*.a
+*.test
+--debug_bin
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains (GoLand / IntelliJ)
+.idea/
+
+# OS-specific files
+.DS_Store
+Thumbs.db
