@@ -3,13 +3,19 @@ kind: Pod
 metadata:
   name: pinger-test
   labels:
-    app: mesh-pinger
+    app: mesh-pinger # This label lets the pod find itself and others in the mesh
 spec:
   containers:
+  # Main applikation (what we are running health checks against)
+  - name: main-app
+    image: hashicorp/http-echo:latest
+    args:
+      - "-text=OK"
+      - "-listen=:8081" 
+    ports:
+      - containerPort: 8081
   - name: pinger
-    image: mesh-pinger:v1
-    # Detta är extremt viktigt: Vi säger åt K8s att INTE leta på internet,
-    # utan använda bilden vi just laddade in manuellt.
+    image: mesh-pinger:v3 #Uppdated to v3
     imagePullPolicy: Never 
     env:
       - name: NODE_NAME

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mesh-pinger-deployment
+  labels:
+    app: mesh-pinger
+spec:
+  replicas: 3 # Creating 3 replicas so they can measure latency between each other
+  selector:
+    matchLabels:
+      app: mesh-pinger
+  template:
+    metadata:
+      labels:
+        app: mesh-pinger # Go searches for this label via the API
+    spec:
+      serviceAccountName: mesh-pinger-sa # This is the service account we created in rbac.yaml
+      containers:
+
+      # Main Application (the local app which we are monitoring)
+      - name: main-app
+        image: hashicorp/http-echo:latest
+        args:
+          - "-text=OK"
+          - "-listen=:8081" 
+        ports:
+          - containerPort: 8081
+        
+     # Sidecar container 
+    - name: pinger
+      image: mesh-pinger:v3 # Updated to v3
+      imagePullPolicy: Never # This is crucial: We tell K8s to NOT look on the internet, but use the image we just loaded manually.
+      env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: TARGET_PORT
+          value: "8081" # Tell the pinger which port to target for health checks
+      ports:
+        - containerPort: 8090 # Port for pinger's own API
