@@ -1,3 +1,31 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mesh-pinger-sa
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: mesh-pinger-cluster-role
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["pods"]
+    verbs: ["list"] # Hardened: ONLY allowed to list pods, no create/delete access
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: mesh-pinger-crb
+subjects:
+  - kind: ServiceAccount
+    name: mesh-pinger-sa
+    namespace: default
+roleRef:
+  kind: ClusterRole
+  name: mesh-pinger-cluster-role
+  apiGroup: rbac.authorization.k8s.io
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -5,19 +33,27 @@ metadata:
   labels:
     app: mesh-pinger
 spec:
-  replicas: 3 # Creating 3 replicas so they can measure latency between each other
+  # Creating 3 replicas for cross-node mesh latency evaluation
+  replicas: 3
   selector:
     matchLabels:
       app: mesh-pinger
   template:
     metadata:
       labels:
-        app: mesh-pinger # Go searches for this label via the API
+        app: mesh-pinger
     spec:
-      serviceAccountName: mesh-pinger-sa # This is the service account we created in rbac.yaml
+      # Explicitly bind the pod to the Service Account that has RBAC permissions to list pods
+      serviceAccountName: mesh-pinger-sa
+      
+      # Pod-level security context (Enforces non-root across all containers)
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+
       containers:
 
-      # Main Application (the local app which we are monitoring)
+      # Main Application (The monitored target)
       - name: main-app
         image: hashicorp/http-echo:latest
         args:
@@ -25,21 +61,90 @@ spec:
           - "-listen=:8081" 
         ports:
           - containerPort: 8081
+            name: app-http
         
-     # Sidecar container 
-    - name: pinger
-      image: mesh-pinger:v3 # Updated to v3
-      imagePullPolicy: Never # This is crucial: We tell K8s to NOT look on the internet, but use the image we just loaded manually.
-      env:
-        - name: NODE_NAME
-          valueFrom:
-            fieldRef:
-              fieldPath: spec.nodeName
-        - name: POD_IP
-          valueFrom:
-            fieldRef:
-              fieldPath: status.podIP
-        - name: TARGET_PORT
-          value: "8081" # Tell the pinger which port to target for health checks
-      ports:
-        - containerPort: 8090 # Port for pinger's own API
+        # Hardening the main application container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+          limits:
+            memory: "64Mi"
+            cpu: "100m"
+
+      # Sidecar Network Telemetry Agent (Pinger)
+      - name: pinger
+        image: mesh-pinger:v3
+        imagePullPolicy: Never # Uses the locally built image present on the node
+        
+        # Container-level security tightening
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true # Ephemeral write-access is blocked entirely
+          capabilities:
+            drop:
+              - ALL # Dropping all privileges since pinger utilizes standard HTTP layers
+
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+          
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
+          
+          - name: TARGET_LABEL
+            value: "mesh-pinger"
+        
+        ports:
+          - containerPort: 8090
+            name: pinger-http
+
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+
+        # Self-healing lifecycle probes
+        
+        # 1. Startup Probe: Blocks other probes during initial Go initialization phase
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8090
+          initialDelaySeconds: 2
+          periodSeconds: 3
+          failureThreshold: 5 # Allows up to 15 seconds to boot before failing completely
+
+        # 2. Readiness Probe: Confirms the sidecar can process inbound health queries safely
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8090
+          initialDelaySeconds: 2
+          periodSeconds: 5
+          successThreshold: 1
+          failureThreshold: 2
+
+        # 3. Liveness Probe: Monitors for application deadlocks; triggers restarts if stuck
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8090
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 2
+          failureThreshold: 3 # Restarts container if 3 consecutive checks fail
