@@ -12,6 +12,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -171,12 +172,10 @@ func main() {
 
 			// Allocate a hard maximum of 5 seconds to drain active networking requests
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
 			if err := srv.Shutdown(shutdownCtx); err != nil {
-				logger.Error("Inbound HTTP server failed to close cleanly during shutdown drain", "error", err)
+				logger.Error("Error during HTTP server shutdown drain", "error", err)
 			}
-
+			defer cancel()
 			logger.Info("Microservice resources cleaned up safely. System termination complete.")
 			return
 
@@ -207,7 +206,7 @@ func main() {
 			}
 
 			// 2. Query the Kubernetes API Server to dynamically discover endpoints matching the target mesh label
-			var pods *metav1.PodList
+			var pods *corev1.PodList
 			err = executeWithBackoff(ctx, logger, "KubernetesPodDiscovery", func() error {
 				var apiErr error
 				pods, apiErr = clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{

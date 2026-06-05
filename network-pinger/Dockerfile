@@ -1,4 +1,4 @@
-FROM golang:1.26-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Install git for certificate management
 RUN apk add --no-cache git ca-certificates
@@ -26,10 +26,10 @@ USER appuser
 
 WORKDIR /home/appuser
 # Copy only the compiled binary from the builder stage
-COPY --from=builder /app/mesh-pinger .
+COPY --from=builder --chown=appuser:appuser /app/mesh-pinger .
 
 
 EXPOSE 8090
 
 # Start the application
-ENTRYPOINT ["/mesh-pinger"]
+ENTRYPOINT ["/home/appuser/mesh-pinger"]
