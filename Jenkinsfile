@@ -6,7 +6,7 @@ pipeline {
     }
     environment {
         IMAGE_NAME = "mesh-pinger"
-        IMAGE_TAG  = "v3"
+        IMAGE_TAG  = GIT_COMMIT[0..6]
         CLUSTER    = "devops-cluster"
     }
 
