@@ -37,7 +37,6 @@ pipeline {
         }
         failure {
             echo 'Pipeline misslyckades'
-            sh 'kubectl rollout undo deployment mesh-pinger-deployment'
         }
     }
 }
