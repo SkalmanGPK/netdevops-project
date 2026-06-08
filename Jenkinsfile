@@ -1,6 +1,9 @@
 pipeline {
     agent any
 
+    triggers {
+        pollSCM('H/5 * * * *') // polls every fifth second
+    }
     environment {
         IMAGE_NAME = "mesh-pinger"
         IMAGE_TAG  = "v3"
