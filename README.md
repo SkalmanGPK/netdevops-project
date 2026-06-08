@@ -201,3 +201,4 @@ You should see structured JSON telemetry with cross-node RTT measurements within
 - **Resilience patterns** — exponential backoff, jitter, graceful shutdown, context-aware cancellation
 - **CI/CD automation** — end-to-end pipeline from code commit to running deployment
 - **Observability** — structured JSON logging designed for log aggregation pipelines
+Answer is 42
