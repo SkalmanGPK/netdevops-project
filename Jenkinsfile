@@ -9,8 +9,15 @@ pipeline {
         CLUSTER    = "devops-cluster"
     }
     stages {
+        stage ('Test') {
+            steps {
+                sh 'docker run --rm -v $(pwd)/network-pinger:/app -w /app golang:1.25-alpine go test ./...'
+
+            }
+        }
         stage('Build') {
             steps {
+
                 sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./network-pinger'
             }
         }
