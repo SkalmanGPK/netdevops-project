@@ -20,6 +20,9 @@ pipeline {
             }
         }
         stage('Deploy') {
+            when {
+                branch 'main'
+            }
             steps {
                 sh 'kubectl rollout restart deployment mesh-pinger-deployment'
                 sh 'kubectl rollout status deployment mesh-pinger-deployment --timeout=60s'
