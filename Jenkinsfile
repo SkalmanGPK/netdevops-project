@@ -11,7 +11,7 @@ pipeline {
     stages {
         stage ('Test') {
             steps {
-                sh 'docker run --rm -v $(pwd)/network-pinger:/app -w /app golang:1.25-alpine go test ./...'
+                sh 'docker build --target test -t mesh-pinger-test ./network-pinger'
 
             }
         }

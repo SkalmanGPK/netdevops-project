@@ -15,6 +15,10 @@ COPY . .
 # Compile binary statically to ensure it works in a minimal image
 RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o mesh-pinger .
 
+# Test stage - builds on builder, runs tests
+FROM builder AS test
+RUN go test ./...
+
 # === stage 2: minimal runtime image ===
 FROM alpine:3.19
 
